@@ -65,3 +65,5 @@ typings/
 
 ~$*.pptx
 .idea
+metamask.secret
+infura-key.txt
