@@ -15,7 +15,7 @@ contract FlightSuretyApp {
 
     //FLightSuretyData Object
     FlightSuretyData flightSuretyData;
-    FlightSuretyData flightSuretyDataContractAddress;
+    address flightSuretyDataContractAddress;
 
     // Account used to deploy contract
     address private contractOwner;
@@ -108,6 +108,7 @@ contract FlightSuretyApp {
     constructor(address contractData) public
     {
         contractOwner = msg.sender;
+        flightSuretyDataContractAddress = contractData;
         flightSuretyData = FlightSuretyData(contractData);
     }
 
@@ -160,6 +161,8 @@ contract FlightSuretyApp {
     {
         require(flightSuretyData.getAirlineBalance(msg.sender) >= AIRLINE_FUNDING_AMOUNT);
         flightSuretyData.submitAirlineFunding(msg.sender, AIRLINE_FUNDING_AMOUNT);
+
+        // flightSuretyDataContractAddress.transfer(msg.value);
 
         emit AirlinePaid(msg.sender);
     }
