@@ -32,6 +32,10 @@ contract FlightSuretyData {
     mapping (address => Airline) private airlines;
     uint256 internal noOfRegisteredAirlines;
 
+    mapping(bytes32 => uint8) private flights;
+    mapping(address => uint256) private credits;
+    mapping(bytes32 => mapping(address => uint256)) private insurances;
+
     /**
     * @dev Constructor
     *      The deploying account becomes contractOwner
@@ -140,6 +144,11 @@ contract FlightSuretyData {
         return getAirlineState(airline) == AirlineState.REGISTERED;
     }
 
+    function airlineExists(address airlineAddress) internal view returns (bool)
+    {
+        return airlines[airlineAddress].airlineAddress == airlineAddress;
+    }
+
     function getAirlineState(address airlineAddress) internal view returns (AirlineState)
     {
         return airlines[airlineAddress].airlineState;
@@ -155,6 +164,11 @@ contract FlightSuretyData {
         return airlines[airline].balance;
     }
 
+    function getAirline(address airline) external view returns (address)
+    {
+        return airlines[airline].airlineAddress;
+    }
+
    /**
     * @dev Add an airline to the registration queue
     *      Can only be called from FlightSuretyApp contract
@@ -162,19 +176,27 @@ contract FlightSuretyData {
     */
 
 
-    function registerAirline(address airlineAddress, string name)
+    function saveAndPendAirlineRegistration(string name, address airlineAddress)
     external
     requireIsOperational
     requireIsCallerAuthorized
     {
-        require(!(airlines[airlineAddress].airlineState == AirlineState.REGISTERED), 'This airline is already registered.');
         airlines[airlineAddress].name = name;
         airlines[airlineAddress].airlineAddress = airlineAddress;
+        airlines[airlineAddress].airlineState = AirlineState.PENDING;
+    }
+
+    function registerAirline(address airlineAddress)
+    external
+    requireIsOperational
+    requireIsCallerAuthorized
+    {
+        require((airlines[airlineAddress].airlineState != AirlineState.REGISTERED), 'This airline is already registered.');
         airlines[airlineAddress].airlineState = AirlineState.REGISTERED;
         noOfRegisteredAirlines = noOfRegisteredAirlines.add(1);
     }
 
-    function voteAirline(address airlineAddress, string name, address voter)
+    function voteAirline(address airlineAddress, address voter)
     external
     requireIsOperational
     requireIsCallerAuthorized
@@ -182,10 +204,8 @@ contract FlightSuretyData {
     {
         require(!(airlines[airlineAddress].airlineState == AirlineState.REGISTERED), 'This airline is already registered.');
         require(!airlines[airlineAddress].voters[voter], "You have already voted for this airline.");
-        airlines[airlineAddress].name = name;
-        airlines[airlineAddress].airlineAddress = airlineAddress;
         airlines[airlineAddress].voters[voter] = true;
-        airlines[airlineAddress].voteCount.add(1);
+        airlines[airlineAddress].voteCount = airlines[airlineAddress].voteCount.add(1);
 
         return airlines[airlineAddress].voteCount;
     }
@@ -253,20 +273,6 @@ contract FlightSuretyData {
 
         airlines[airline].balance = airlines[airline].balance.sub(amount);
         airlines[airline].airlineState = AirlineState.FUNDED;
-    }
-
-
-    function getFlightKey
-                        (
-                            address airline,
-                            string memory flight,
-                            uint256 timestamp
-                        )
-                        pure
-                        internal
-                        returns(bytes32)
-    {
-        return keccak256(abi.encodePacked(airline, flight, timestamp));
     }
 
     /**

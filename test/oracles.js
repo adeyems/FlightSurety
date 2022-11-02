@@ -1,10 +1,10 @@
 
 var Test = require('../config/testConfig.js');
-//var BigNumber = require('bignumber.js');
+const BigNumber = require("bignumber.js");
 
 contract('Oracles', async (accounts) => {
 
-  const TEST_ORACLES_COUNT = 20;
+  const TEST_ORACLES_COUNT = 10;
   var config;
   before('setup contract', async () => {
     config = await Test.Config(accounts);
@@ -19,28 +19,30 @@ contract('Oracles', async (accounts) => {
 
   });
 
+  let oracles = [];
 
   it('can register oracles', async () => {
-    
+
     // ARRANGE
-    let fee = await config.flightSuretyApp.REGISTRATION_FEE.call();
+    let fee = await config.flightSuretyApp.REGISTRATION_FEE.call({from: accounts[1]});
 
     // ACT
-    for(let a=1; a<TEST_ORACLES_COUNT; a++) {      
+    for(let a=1; a<TEST_ORACLES_COUNT; a++) {
       await config.flightSuretyApp.registerOracle({ from: accounts[a], value: fee });
-      let result = await config.flightSuretyApp.getMyIndexes.call({from: accounts[a]});
-      console.log(`Oracle Registered: ${result[0]}, ${result[1]}, ${result[2]}`);
+      let indexes = await config.flightSuretyApp.getMyIndexes.call({from: accounts[a]});
+      console.log(`Oracle Registered: ${indexes[0]}, ${indexes[1]}, ${indexes[2]}`);
+      oracles.push({address: accounts[a], indexes});
     }
   });
 
   it('can request flight status', async () => {
-    
+
     // ARRANGE
     let flight = 'ND1309'; // Course number
     let timestamp = Math.floor(Date.now() / 1000);
 
     // Submit a request for oracles to get status information for a flight
-    await config.flightSuretyApp.fetchFlightStatus(config.firstAirline, flight, timestamp);
+    let oracleRequest = await config.flightSuretyApp.fetchFlightStatus(config.firstAirline, flight, timestamp);
     // ACT
 
     // Since the Index assigned to each test account is opaque by design
@@ -51,18 +53,22 @@ contract('Oracles', async (accounts) => {
 
       // Get oracle information
       let oracleIndexes = await config.flightSuretyApp.getMyIndexes.call({ from: accounts[a]});
+      let oracleResponse;
       for(let idx=0;idx<3;idx++) {
 
         try {
           // Submit a response...it will only be accepted if there is an Index match
-          await config.flightSuretyApp.submitOracleResponse(oracleIndexes[idx], config.firstAirline, flight, timestamp, STATUS_CODE_ON_TIME, { from: accounts[a] });
+          oracleResponse = await config.flightSuretyApp.submitOracleResponse(oracleIndexes[idx], config.firstAirline, flight, timestamp, STATUS_CODE_ON_TIME, { from: accounts[a] });
 
         }
         catch(e) {
           // Enable this when debugging
            console.log('\nError', idx, oracleIndexes[idx].toNumber(), flight, timestamp);
         }
-
+        assert.equal(oracleRequest.logs[0].event, "OracleRequest", "OracleRequest event should be emitted")
+        assert.equal(oracleRequest.logs[0].args.airline, config.firstAirline)
+        assert.equal(oracleRequest.logs[0].args.flight, flight)
+        assert.equal(BigNumber(oracleRequest.logs[0].args.timestamp), timestamp)
       }
     }
 
@@ -70,5 +76,5 @@ contract('Oracles', async (accounts) => {
   });
 
 
- 
+
 });

@@ -79,7 +79,6 @@ contract('Flight Surety Tests', async (accounts) => {
     it('(airline) registers first airline when the contract is deployed.', async () => {
 
         // ARRANGE
-        let firstAirline = accounts[1];
         let isAirlineRegistered
 
         // ACT
@@ -97,13 +96,11 @@ contract('Flight Surety Tests', async (accounts) => {
     it('(airline) cannot register an Airline using registerAirline() if it is not funded', async () => {
 
     // ARRANGE
-    let firstAirline = accounts[1];
-    let newAirline = accounts[2];
     let errorMessage;
 
     // ACT
     try {
-          await config.flightSuretyApp.registerAirline('Airline 2', newAirline, {from: firstAirline});
+          await config.flightSuretyApp.registerAirline('Airline 2', secondAirline, {from: firstAirline});
     }
     catch(e) {
         errorMessage = e.message
@@ -116,13 +113,11 @@ contract('Flight Surety Tests', async (accounts) => {
     it('(airline) cannot register an Airline using registerAirline() if it is not funded', async () => {
 
         // ARRANGE
-        let firstAirline = accounts[1];
-        let newAirline = accounts[2];
         let errorMessage;
 
         // ACT
         try {
-            await config.flightSuretyApp.registerAirline('Airline 2', newAirline, {from: firstAirline});
+            await config.flightSuretyApp.registerAirline('Airline 2', secondAirline, {from: firstAirline});
         }
         catch(e) {
             errorMessage = e.message
@@ -135,7 +130,6 @@ contract('Flight Surety Tests', async (accounts) => {
     it('(airline) can fund their account and pay airline dues', async () => {
 
         // ARRANGE
-        let firstAirline = accounts[1];
         let fundingAmount = web3.utils.toWei('12', 'ether');
         let initialBalance, balanceAfterFunding, balanceAfterPayingAirlineDue, airlineFundingAmount, submitAirlineFunding;
         let isAirlineFunded = false;
@@ -145,18 +139,18 @@ contract('Flight Surety Tests', async (accounts) => {
 
             // Check initial balance
             initialBalance = await config.flightSuretyData.getAirlineBalance(firstAirline);
-            // console.log("initial balance", BigNumber(initialBalance) + "\n")
+            console.log("initial balance", BigNumber(initialBalance) + "\n")
 
             // Fund and check new balance
             await config.flightSuretyApp.fund({from: firstAirline, value: fundingAmount});
             balanceAfterFunding = await config.flightSuretyData.getAirlineBalance(firstAirline);
-            // console.log("after funding", BigNumber(balanceAfterFunding) + "\n")
+            console.log("after funding", BigNumber(balanceAfterFunding) + "\n")
 
             //get Airline Funding Amount
             airlineFundingAmount = await config.flightSuretyApp.AIRLINE_FUNDING_AMOUNT.call();
 
             // Pay AirlineFunding Amount
-            submitAirlineFunding = await config.flightSuretyApp.submitAirlineFunding({from: firstAirline});
+            submitAirlineFunding = await config.flightSuretyApp.submitAirlineFunding({from: firstAirline, value: airlineFundingAmount});
 
             balanceAfterPayingAirlineDue = await config.flightSuretyData.getAirlineBalance(firstAirline);
             // console.log("after paying dues", BigNumber(balanceAfterPayingAirlineDue) + "\n")
@@ -180,7 +174,85 @@ contract('Flight Surety Tests', async (accounts) => {
 
     // try register with second Airline and get non-existing
 
-    it('can (airline) create airline after paying airline dues ', function () {
+    it('can (airline) create airline after paying airline dues ', async () => {
 
+        // ARRANGE
+        let airlineRegistration, isAirlineRegistered;
+        // ACT
+        try {
+            airlineRegistration = await config.flightSuretyApp.registerAirline('Airline 2', secondAirline, {from: firstAirline});
+            isAirlineRegistered = await config.flightSuretyApp.isAirlineRegistered(secondAirline);
+        }
+        catch(e) {
+            console.log(e.message)
+        }
+
+        // ASSERT
+        assert.equal(isAirlineRegistered, true, "Second airline should be registered.");
+        assert.equal(airlineRegistration.logs[0].event, "AirlineRegistered", 'AirlineRegistered event should be emitted.');
+
+    });
+
+    it('can create airlines up to 4 before it requires multiparty consensus ', async () => {
+
+        // ARRANGE
+        let thirdAirlineRegistration, isThirdAirlineRegistered, fourthAirlineRegistration, isFourthAirlineRegistered,
+            fifthAirlineRegistration, isFifthAirlineRegistered;
+        // ACT
+        try {
+            thirdAirlineRegistration = await config.flightSuretyApp.registerAirline('Airline 3', thirdAirline, {from: firstAirline});
+            isThirdAirlineRegistered = await config.flightSuretyApp.isAirlineRegistered(thirdAirline);
+
+            fourthAirlineRegistration = await config.flightSuretyApp.registerAirline('Airline 4', fourthAirline, {from: firstAirline});
+            isFourthAirlineRegistered = await config.flightSuretyApp.isAirlineRegistered(fourthAirline);
+
+            fifthAirlineRegistration = await config.flightSuretyApp.registerAirline('Airline 5', fifthAirline, {from: firstAirline});
+            isFifthAirlineRegistered = await config.flightSuretyApp.isAirlineRegistered(fifthAirline);
+
+        }
+        catch(e) {
+            console.log(e.message)
+        }
+
+        // ASSERT
+        assert.equal(isThirdAirlineRegistered, true, "Third airline should be registered.");
+        assert.equal(thirdAirlineRegistration.logs[0].event, "AirlineRegistered", 'AirlineRegistered event should be emitted');
+
+        assert.equal(isFourthAirlineRegistered, true, "Fourth airline should be registered.");
+        assert.equal(fourthAirlineRegistration.logs[0].event, "AirlineRegistered", 'AirlineRegistered event should be emitted');
+
+        assert.equal(isFifthAirlineRegistered, false, "Fifth airline should not be registered.");
+        assert.equal(fifthAirlineRegistration.logs[0].event, "AirlineVoted", "AirlineVoted event should be emitted.");
+        assert.equal(fifthAirlineRegistration.logs[0].args.name, "Airline 5", "Fifth Airline name should be Airline 5.");
+        assert.equal(BigNumber(fifthAirlineRegistration.logs[0].args.voteCount), 1, "Fifth airline voteCount should be 1");
+    });
+
+    it('requires 50% multiparty consensus for the fifth and subsequent airlines ', async () => {
+
+        // ARRANGE
+        let fifthAirlineRegistration, isFifthAirlineRegistered;
+        const fundingAmount = web3.utils.toWei('11', 'ether');
+
+        // ACT
+        try {
+            // 2nd Airline should fund to be able to participate in voting
+            await config.flightSuretyApp.fund({from: secondAirline, value: fundingAmount});
+            await config.flightSuretyApp.submitAirlineFunding({from: secondAirline});
+
+            // second airline registers the fifth airline and count as second vote
+            fifthAirlineRegistration = await config.flightSuretyApp.registerAirline('Airline 5', fifthAirline, {from: secondAirline});
+            isFifthAirlineRegistered = await config.flightSuretyApp.isAirlineRegistered(fifthAirline);
+
+        }
+        catch(e) {
+            console.log(e.message)
+        }
+
+        // ASSERT
+        assert.equal(fifthAirlineRegistration.logs[0].event, "AirlineVoted", "Airline voted.");
+        assert.equal(fifthAirlineRegistration.logs[1].event, "AirlineRegistered", "Fifth airline should be registered.");
+        assert.equal(isFifthAirlineRegistered, true, "Fifth airline should be registered.");
+        assert.equal(fifthAirlineRegistration.logs[0].args.name, "Airline 5", "Fifth Airline name should be Airline 5.");
+        assert.equal(BigNumber(fifthAirlineRegistration.logs[0].args.voteCount), 2, "Fifth airline voteCount should be 2");
     });
 });

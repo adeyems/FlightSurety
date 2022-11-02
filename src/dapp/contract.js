@@ -16,11 +16,11 @@ export default class Contract {
 
     initialize(callback) {
         this.web3.eth.getAccounts((error, accts) => {
-           
+
             this.owner = accts[0];
 
             let counter = 1;
-            
+
             while(this.airlines.length < 5) {
                 this.airlines.push(accts[counter++]);
             }
@@ -40,17 +40,17 @@ export default class Contract {
             .call({ from: self.owner}, callback);
     }
 
-    fetchFlightStatus(flight, callback) {
-        let self = this;
-        let payload = {
-            airline: self.airlines[0],
-            flight: flight,
-            timestamp: Math.floor(Date.now() / 1000)
-        } 
-        self.flightSuretyApp.methods
-            .fetchFlightStatus(payload.airline, payload.flight, payload.timestamp)
-            .send({ from: self.owner}, (error, result) => {
-                callback(error, payload);
-            });
+    fetchFlightStatus(airline, flight, timestamp) {
+        return new Promise((resolve, reject) => {
+            this.flightSuretyApp.methods
+                .fetchFlightStatus(airline, flight, timestamp)
+                .send(
+                    { from: this.owner },
+                    (err, res) => {
+                        if (err) reject(err);
+                        resolve(res);
+                    }
+                );
+        })
     }
 }
