@@ -37,6 +37,7 @@ contract FlightSuretyApp {
     }
 
     mapping(bytes32 => Flight) private flights;
+    mapping(string => uint8) private flightCodes;
     bytes32[] private flightsKeyList;
 
 
@@ -51,6 +52,7 @@ contract FlightSuretyApp {
     event AirlinePaid(address airlineAddress);
     event AirlineVoted(string name, address airlineAddress, uint256 voteCount);
 
+    event InsurancePurchased(address passenger, string flightCode, uint256 amount);
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
     /********************************************************************************************/
@@ -110,6 +112,35 @@ contract FlightSuretyApp {
         contractOwner = msg.sender;
         flightSuretyDataContractAddress = contractData;
         flightSuretyData = FlightSuretyData(contractData);
+
+        // Initialize flights
+
+        uint256 initialTime = now;
+
+        bytes32 flightKey1 = getFlightKey(contractOwner, "FlightA", initialTime);
+        flights[flightKey1] = Flight(STATUS_CODE_UNKNOWN, initialTime, contractOwner, "FlightA");
+        flightCodes["FlightA"] = 1;
+        flightsKeyList.push(flightKey1);
+
+        bytes32 flightKey2 = getFlightKey(contractOwner, "FlightB", initialTime + 1 days);
+        flights[flightKey2] = Flight(STATUS_CODE_UNKNOWN, initialTime + 1 days, contractOwner, "FlightB");
+        flightCodes["FlightB"] = 1;
+        flightsKeyList.push(flightKey2);
+
+        bytes32 flightKey3 = getFlightKey(contractOwner, "FlightC", initialTime + 2 days);
+        flights[flightKey3] = Flight(STATUS_CODE_UNKNOWN, initialTime + 2 days, contractOwner, "FlightC");
+        flightCodes["FlightC"] = 1;
+        flightsKeyList.push(flightKey3);
+
+        bytes32 flightKey4 = getFlightKey(contractOwner, "FlightD", initialTime + 3 days);
+        flights[flightKey4] = Flight(STATUS_CODE_UNKNOWN, initialTime + 3 days, contractOwner, "FlightD");
+        flightCodes["FlightD"] = 1;
+        flightsKeyList.push(flightKey4);
+
+        bytes32 flightKey5 = getFlightKey(contractOwner, "FlightE", initialTime + 4 days);
+        flights[flightKey5] = Flight(STATUS_CODE_UNKNOWN, initialTime + 4 days, contractOwner, "FlightE");
+        flightCodes["FlightE"] = 1;
+        flightsKeyList.push(flightKey5);
     }
 
     /********************************************************************************************/
@@ -189,6 +220,19 @@ contract FlightSuretyApp {
         flightsKeyList.push(flightKey);
     }
 
+    function getFlightsCount() external view returns(uint256 count)
+    {
+        return flightsKeyList.length;
+    }
+
+    function getFlightByIndex(uint256 index) external view returns(address airline, string flightCode, uint256 timestamp, uint8 statusCode)
+    {
+        airline = flights[ flightsKeyList[index] ].airline;
+        flightCode = flights[ flightsKeyList[index] ].flightCode;
+        timestamp = flights[ flightsKeyList[index] ].updatedTimestamp;
+        statusCode = flights[ flightsKeyList[index] ].statusCode;
+    }
+
     // Flight
 
    /**
@@ -226,6 +270,56 @@ contract FlightSuretyApp {
         emit OracleRequest(index, airline, flight, timestamp);
     }
 
+
+    // Insurance
+
+    function purchaseInsurance(string flightCode)
+    external
+    payable
+    {
+        require(flightCodes[flightCode] == 1, "Flight does not exist");
+        require(msg.value <= INSURANCE_PRICE_LIMIT, "Max amount of insurance is 1 ether");
+
+        // flightSuretyDataContractAddress.transfer(msg.value);
+
+        uint256 insuranceValue = msg.value.mul(3).div(2);
+
+        flightSuretyData.createInsurance(msg.sender, flightCode, msg.value, insuranceValue);
+
+        emit InsurancePurchased(msg.sender, flightCode, msg.value);
+    }
+
+
+    function getInsurance(string flightCode)
+    external
+    view
+    returns (uint256 amount, uint256 payoutAmount, uint256 state)
+    {
+        return flightSuretyData.getInsurance(msg.sender, flightCode);
+    }
+
+    function claimInsurance(address airline, string flightCode, uint256 timestamp)
+    external
+    {
+        bytes32 flightKey = getFlightKey(airline, flightCode, timestamp);
+        require(flights[flightKey].statusCode == STATUS_CODE_LATE_AIRLINE, "Flight was not delayed.");
+
+        flightSuretyData.claimInsurance(msg.sender, flightCode);
+    }
+
+    function getBalance()
+    external
+    view
+    returns (uint256 balance)
+    {
+        return flightSuretyData.getPassengerBalance(msg.sender);
+    }
+
+    function withdrawBalance() external
+    {
+        flightSuretyData.withdrawToPassengerWallet(msg.sender);
+    }
+
 // region ORACLE MANAGEMENT
 
     // Incremented to add pseudo-randomness at various points
@@ -235,7 +329,7 @@ contract FlightSuretyApp {
     uint256 public constant REGISTRATION_FEE = 1 ether;
 
     // Number of oracles that must respond for valid status
-    uint256 private constant MIN_RESPONSES = 3;
+    uint256 public constant MIN_RESPONSES = 3;
 
 
     struct Oracle {
@@ -268,6 +362,7 @@ contract FlightSuretyApp {
     // Oracles track this and if they have a matching index
     // they fetch data and submit a response
     event OracleRequest(uint8 index, address airline, string flight, uint256 timestamp);
+
 
     event FlightStatusProcessed(address airline, string flightCode, uint256 timestamp, uint8 statusCode);
 
@@ -415,4 +510,9 @@ contract FlightSuretyData {
     function getAirlineBalance(address airline) external view returns (uint);
     function fund(address airline) public payable returns(uint256);
     function submitAirlineFunding(address airline, uint256 amount) public;
+    function createInsurance(address passenger, string flightCode, uint256 amount, uint256 insuranceValue) external;
+    function claimInsurance(address passenger, string flightCode) external;
+    function getPassengerBalance(address passenger) external view returns (uint256);
+    function getInsurance(address passenger, string flightCode) external view returns (uint256 amount, uint256 insuranceValue, uint state);
+    function withdrawToPassengerWallet(address passenger) external;
 }

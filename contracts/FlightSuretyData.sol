@@ -20,6 +20,11 @@ contract FlightSuretyData {
         FUNDED
     }
 
+    enum InsuranceState {
+        PURCHASED,
+        CLAIMED
+    }
+
     struct Airline {
         string name;
         address airlineAddress;
@@ -29,12 +34,18 @@ contract FlightSuretyData {
         uint256 balance;
     }
 
+    struct Insurance {
+        string flightCode;
+        uint256 amount;
+        uint256 insuranceValue;
+        InsuranceState state;
+    }
+
     mapping (address => Airline) private airlines;
     uint256 internal noOfRegisteredAirlines;
 
-    mapping(bytes32 => uint8) private flights;
-    mapping(address => uint256) private credits;
-    mapping(bytes32 => mapping(address => uint256)) private insurances;
+    mapping(address => mapping(string => Insurance)) private insurances;
+    mapping(address => uint256) private passengerCredits;
 
     /**
     * @dev Constructor
@@ -223,48 +234,6 @@ contract FlightSuretyData {
         return airlines[airline].balance;
     }
 
-    /**
-    * Vote an airline
-    */
-
-
-   /**
-    * @dev Buy insurance for a flight
-    *
-    */
-    function buy
-                            (
-                            )
-                            external
-                            payable
-    {
-
-    }
-
-    /**
-     *  @dev Credits payouts to insurees
-    */
-    function creditInsurees
-                                (
-                                )
-                                external
-                                pure
-    {
-    }
-
-
-    /**
-     *  @dev Transfers eligible payout funds to insuree
-     *
-    */
-    function pay
-                            (
-                            )
-                            external
-                            pure
-    {
-    }
-
     function submitAirlineFunding(address airline, uint256 amount)
     public
     requireIsOperational
@@ -273,6 +242,62 @@ contract FlightSuretyData {
 
         airlines[airline].balance = airlines[airline].balance.sub(amount);
         airlines[airline].airlineState = AirlineState.FUNDED;
+    }
+
+    /**************************************************************************/
+    /*                           PASSENGER FUNCTIONS                            */
+    /*************************************************************************/
+
+    function createInsurance(address passenger, string flightCode, uint256 amount, uint256 insuranceValue)
+    external
+    requireIsCallerAuthorized
+    {
+        require(insurances[passenger][flightCode].amount != amount, "Insurance already exists");
+
+        insurances[passenger][flightCode] = Insurance(flightCode, amount, insuranceValue, InsuranceState.PURCHASED);
+    }
+
+
+    function getInsurance(address passenger, string flightCode)
+    external
+    view
+    requireIsCallerAuthorized
+    returns (uint256 amount, uint256 insuranceValue, InsuranceState state)
+    {
+        amount = insurances[passenger][flightCode].amount;
+        insuranceValue = insurances[passenger][flightCode].insuranceValue;
+        state = insurances[passenger][flightCode].state;
+    }
+
+    function claimInsurance(address passenger, string flightCode)
+    external
+    requireIsCallerAuthorized
+    {
+        require(insurances[passenger][flightCode].state == InsuranceState.PURCHASED, "Insurance already claimed");
+
+        insurances[passenger][flightCode].state = InsuranceState.CLAIMED;
+
+        passengerCredits[passenger] = passengerCredits[passenger].add(insurances[passenger][flightCode].insuranceValue);
+    }
+
+    function getPassengerBalance(address passenger)
+    external
+    view
+    requireIsCallerAuthorized
+    returns (uint256)
+    {
+        return passengerCredits[passenger];
+    }
+
+    function withdrawToPassengerWallet(address passenger)
+    external
+    requireIsCallerAuthorized
+    {
+        require(passengerCredits[passenger] > 0, "Withdrawal amount is greater than passenger credit");
+
+        passengerCredits[passenger] = 0;
+
+        passenger.transfer(passengerCredits[passenger]);
     }
 
     /**

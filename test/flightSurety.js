@@ -14,6 +14,7 @@ contract('Flight Surety Tests', async (accounts) => {
   const thirdAirline = accounts[3];
   const fourthAirline = accounts[4];
   const fifthAirline = accounts[5];
+  const passenger = accounts[6];
 
   /****************************************************************************************/
   /* Operations and Settings                                                              */
@@ -250,9 +251,45 @@ contract('Flight Surety Tests', async (accounts) => {
 
         // ASSERT
         assert.equal(fifthAirlineRegistration.logs[0].event, "AirlineVoted", "Airline voted.");
-        assert.equal(fifthAirlineRegistration.logs[1].event, "AirlineRegistered", "Fifth airline should be registered.");
+        assert.equal(fifthAirlineRegistration.logs[1].event, "AirlineRegistered", "Fifth airline should be emitted.");
         assert.equal(isFifthAirlineRegistered, true, "Fifth airline should be registered.");
         assert.equal(fifthAirlineRegistration.logs[0].args.name, "Airline 5", "Fifth Airline name should be Airline 5.");
         assert.equal(BigNumber(fifthAirlineRegistration.logs[0].args.voteCount), 2, "Fifth airline voteCount should be 2");
+    });
+
+
+    //Insurance
+
+    it('can (passenger) buy insurance for flight', async function () {
+
+        let flight, purchaseInsurance;
+        const value = web3.utils.toWei('0.5', 'ether');
+
+        try {
+            flight = await config.flightSuretyApp.getFlightByIndex(0);
+            purchaseInsurance = await config.flightSuretyApp.purchaseInsurance(flight.flightCode, { from: passenger, value});
+        }
+        catch (e){
+            console.log(e.message);
+
+        }
+        assert.equal(purchaseInsurance.logs[0].event, "InsurancePurchased", "InsurancePurchased event should be emitted.");
+        assert.equal(purchaseInsurance.logs[0].args.passenger, passenger);
+        assert.equal(purchaseInsurance.logs[0].args.flightCode, flight.flightCode);
+        assert.equal(purchaseInsurance.logs[0].args.amount, value);
+    });
+
+    it('cannot (passenger) buy more than 1 ether of insurance', async function () {
+
+        let flight, errorMessage;
+
+        try {
+            flight = await config.flightSuretyApp.getFlightByIndex(0);
+            await config.flightSuretyApp.purchaseInsurance(flight.flightCode, {from: passenger, value: web3.utils.toWei('1.5', 'ether')});
+        } catch (e) {
+            errorMessage = e.message
+        }
+
+        assert.equal(errorMessage, "Returned error: VM Exception while processing transaction: revert Max amount of insurance is 1 ether");
     });
 });

@@ -8,18 +8,17 @@ contract('Oracles', async (accounts) => {
   var config;
   before('setup contract', async () => {
     config = await Test.Config(accounts);
-
-    // Watch contract events
-    const STATUS_CODE_UNKNOWN = 0;
-    const STATUS_CODE_ON_TIME = 10;
-    const STATUS_CODE_LATE_AIRLINE = 20;
-    const STATUS_CODE_LATE_WEATHER = 30;
-    const STATUS_CODE_LATE_TECHNICAL = 40;
-    const STATUS_CODE_LATE_OTHER = 50;
-
   });
 
   let oracles = [];
+  // Watch contract events
+  const STATUS_CODE_UNKNOWN = 0;
+  const STATUS_CODE_ON_TIME = 10;
+  const STATUS_CODE_LATE_AIRLINE = 20;
+  const STATUS_CODE_LATE_WEATHER = 30;
+  const STATUS_CODE_LATE_TECHNICAL = 40;
+  const STATUS_CODE_LATE_OTHER = 50;
+
 
   it('can register oracles', async () => {
 
@@ -44,37 +43,57 @@ contract('Oracles', async (accounts) => {
     // Submit a request for oracles to get status information for a flight
     let oracleRequest = await config.flightSuretyApp.fetchFlightStatus(config.firstAirline, flight, timestamp);
     // ACT
+    const eventLogs = oracleRequest.logs[0];
+    let indexGenerated =  eventLogs.args.index;
+    let matchingOracles = [];
 
-    // Since the Index assigned to each test account is opaque by design
-    // loop through all the accounts and for each account, all its Indexes (indices?)
-    // and submit a response. The contract will reject a submission if it was
-    // not requested so while sub-optimal, it's a good test of that feature
-    for(let a=1; a<TEST_ORACLES_COUNT; a++) {
+    console.log("index generated", BigNumber(indexGenerated));
 
-      // Get oracle information
-      let oracleIndexes = await config.flightSuretyApp.getMyIndexes.call({ from: accounts[a]});
+    oracles.forEach((oracle) => {
+      if (BigNumber(oracle.indexes[0]).isEqualTo(indexGenerated)) matchingOracles.push(oracle)
+      if (BigNumber(oracle.indexes[1]).isEqualTo(indexGenerated)) matchingOracles.push(oracle)
+      if (BigNumber(oracle.indexes[2]).isEqualTo(indexGenerated)) matchingOracles.push(oracle)
+    })
+
+    console.log("matching oracles", matchingOracles);
+
+    const minimumOracleResponses = await config.flightSuretyApp.MIN_RESPONSES.call();
+    const matchingOraclesLength = matchingOracles.length;
+    const isOraclesResponseEnough = matchingOraclesLength >= minimumOracleResponses;
+
+    if (!isOraclesResponseEnough){
+      console.warn("The minimum number of oracles response must be greater than or equals " + minimumOracleResponses);
+    }
+
+    // test for each matching oracles since they have the generatedIndex;
       let oracleResponse;
-      for(let idx=0;idx<3;idx++) {
+      for (let i = 0; i < matchingOraclesLength; i++ ){
 
         try {
           // Submit a response...it will only be accepted if there is an Index match
-          oracleResponse = await config.flightSuretyApp.submitOracleResponse(oracleIndexes[idx], config.firstAirline, flight, timestamp, STATUS_CODE_ON_TIME, { from: accounts[a] });
-
+          oracleResponse = await config.flightSuretyApp.submitOracleResponse(indexGenerated, config.firstAirline, flight, timestamp, STATUS_CODE_ON_TIME, { from: matchingOracles[i].address });
         }
         catch(e) {
           // Enable this when debugging
-           console.log('\nError', idx, oracleIndexes[idx].toNumber(), flight, timestamp);
+          console.log(e.message);
         }
+        assert.equal(oracleResponse.logs[0].event, "OracleReport", "OracleReport event should be emitted")
+        assert.equal(oracleResponse.logs[0].args.airline, config.firstAirline)
+        assert.equal(oracleResponse.logs[0].args.flight, flight)
+        assert.equal(BigNumber(oracleResponse.logs[0].args.status).toNumber(), STATUS_CODE_ON_TIME)
+        assert.equal(BigNumber(oracleRequest.logs[0].args.timestamp), timestamp)
+
+        // confirm if other events are emitted if minimum number of oracles has responded
+        if (isOraclesResponseEnough && (i === (matchingOraclesLength - 1))){
+          assert.equal(oracleResponse.logs[1].event, "FlightStatusInfo", "FlightStatusInfo event should be emitted")
+          assert.equal(oracleResponse.logs[2].event, "FlightStatusProcessed", "FlightStatusProcessed event should be emitted")
+        }
+      }
+
         assert.equal(oracleRequest.logs[0].event, "OracleRequest", "OracleRequest event should be emitted")
         assert.equal(oracleRequest.logs[0].args.airline, config.firstAirline)
+        assert.equal(oracleRequest.logs[0].args.index, indexGenerated)
         assert.equal(oracleRequest.logs[0].args.flight, flight)
         assert.equal(BigNumber(oracleRequest.logs[0].args.timestamp), timestamp)
-      }
-    }
-
-
   });
-
-
-
 });
