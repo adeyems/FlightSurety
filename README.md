@@ -1,6 +1,12 @@
 # FlightSurety
 
-FlightSurety is a sample application project for Udacity's Blockchain course.
+#### FlightSurety is a sample application project for Udacity's Blockchain course.
+
+## Project Specification
+[Separation of Concerns, Operational Control and “Fail Fast”](./project-specifications/design.png)<br>
+[Airlines](./project-specifications/airlines.png)<br>
+[Passengers](./project-specifications/passengers.png)<br>
+[Oracles (Server App)](./project-specifications/oracle-server-app.png)<br>
 
 ## Install
 
