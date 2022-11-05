@@ -7,6 +7,9 @@ module.exports = {
     path: path.join(__dirname, "prod/dapp"),
     filename: "bundle.js"
   },
+  node: {
+    fs: 'empty'
+  },
   module: {
     rules: [
     {
@@ -32,7 +35,7 @@ module.exports = {
     ]
   },
   plugins: [
-    new HtmlWebpackPlugin({ 
+    new HtmlWebpackPlugin({
       template: path.join(__dirname, "src/dapp/index.html")
     })
   ],

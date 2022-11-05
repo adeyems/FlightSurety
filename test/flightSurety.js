@@ -1,7 +1,6 @@
 
 const Test = require('../config/testConfig.js');
 const BigNumber = require('bignumber.js');
-const truffleAssert = require('truffle-assertions')
 
 contract('Flight Surety Tests', async (accounts) => {
   before('setup contract', async () => {
@@ -108,7 +107,7 @@ contract('Flight Surety Tests', async (accounts) => {
     }
 
     // ASSERT
-        assert.equal(errorMessage, "Returned error: VM Exception while processing transaction: revert This airline needs to fund their account to operate.")
+        assert.equal(errorMessage.slice(-("This airline needs to fund their account to operate.").length), "This airline needs to fund their account to operate.")
   });
 
     it('(airline) cannot register an Airline using registerAirline() if it is not funded', async () => {
@@ -271,12 +270,12 @@ contract('Flight Surety Tests', async (accounts) => {
         }
         catch (e){
             console.log(e.message);
-
         }
         assert.equal(purchaseInsurance.logs[0].event, "InsurancePurchased", "InsurancePurchased event should be emitted.");
         assert.equal(purchaseInsurance.logs[0].args.passenger, passenger);
         assert.equal(purchaseInsurance.logs[0].args.flightCode, flight.flightCode);
         assert.equal(purchaseInsurance.logs[0].args.amount, value);
+        assert.equal(purchaseInsurance.logs[0].args.insuranceValue, 1.5 * value);
     });
 
     it('cannot (passenger) buy more than 1 ether of insurance', async function () {
@@ -290,6 +289,6 @@ contract('Flight Surety Tests', async (accounts) => {
             errorMessage = e.message
         }
 
-        assert.equal(errorMessage, "Returned error: VM Exception while processing transaction: revert Max amount of insurance is 1 ether");
+        assert.equal(errorMessage.slice(-("Max amount of insurance is 1 ether").length), "Max amount of insurance is 1 ether");
     });
 });

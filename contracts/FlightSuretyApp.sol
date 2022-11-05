@@ -15,7 +15,6 @@ contract FlightSuretyApp {
 
     //FLightSuretyData Object
     FlightSuretyData flightSuretyData;
-    address flightSuretyDataContractAddress;
 
     // Account used to deploy contract
     address private contractOwner;
@@ -52,7 +51,7 @@ contract FlightSuretyApp {
     event AirlinePaid(address airlineAddress);
     event AirlineVoted(string name, address airlineAddress, uint256 voteCount);
 
-    event InsurancePurchased(address passenger, string flightCode, uint256 amount);
+    event InsurancePurchased(address passenger, string flightCode, uint256 amount, uint256 insuranceValue);
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
     /********************************************************************************************/
@@ -110,7 +109,6 @@ contract FlightSuretyApp {
     constructor(address contractData) public
     {
         contractOwner = msg.sender;
-        flightSuretyDataContractAddress = contractData;
         flightSuretyData = FlightSuretyData(contractData);
 
         // Initialize flights
@@ -192,8 +190,6 @@ contract FlightSuretyApp {
     {
         require(flightSuretyData.getAirlineBalance(msg.sender) >= AIRLINE_FUNDING_AMOUNT);
         flightSuretyData.submitAirlineFunding(msg.sender, AIRLINE_FUNDING_AMOUNT);
-
-        // flightSuretyDataContractAddress.transfer(msg.value);
 
         emit AirlinePaid(msg.sender);
     }
@@ -280,20 +276,18 @@ contract FlightSuretyApp {
         require(flightCodes[flightCode] == 1, "Flight does not exist");
         require(msg.value <= INSURANCE_PRICE_LIMIT, "Max amount of insurance is 1 ether");
 
-        // flightSuretyDataContractAddress.transfer(msg.value);
-
         uint256 insuranceValue = msg.value.mul(3).div(2);
 
         flightSuretyData.createInsurance(msg.sender, flightCode, msg.value, insuranceValue);
 
-        emit InsurancePurchased(msg.sender, flightCode, msg.value);
+        emit InsurancePurchased(msg.sender, flightCode, msg.value, insuranceValue);
     }
 
 
     function getInsurance(string flightCode)
     external
     view
-    returns (uint256 amount, uint256 payoutAmount, uint256 state)
+    returns (uint256 amount, uint256 insuranceValue, uint256 state)
     {
         return flightSuretyData.getInsurance(msg.sender, flightCode);
     }
